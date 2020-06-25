@@ -1,85 +1,181 @@
-import React from 'react';
-// import { useMachine } from "@xstate/react";
-import { Machine } from 'xstate';
-import { percentage, minutes, seconds } from './utils';
+import React from "react";
+import { useMachine } from "@xstate/react";
+import { Machine, assign } from "xstate";
+import { percentage, minutes, seconds } from "./utils";
 
-import './reset.css';
-import './App.css';
+import "./reset.css";
+import "./App.css";
 
-const videoMachine = new Machine({
-  id: 'videoMachine',
-  initial: '',
+/**
+ * Video State Machine
+ */
+
+const videoMachine = Machine({
+  id: "video",
+  initial: "loading",
+
   context: {
     video: null,
     duration: 0,
-    elapsed: 0
+    elapsed: 0,
   },
+
   states: {
     loading: {
       on: {
-        LOADED: 'ready',
-        FAIL: 'failure',
-      }
+        LOADED: {
+          target: "ready",
+          actions: ["setVideo"],
+        },
+        FAIL: "failure",
+      },
     },
     ready: {
       initial: "paused",
       states: {
         paused: {
           on: {
-            PLAY: 'playing',
-          }
+            PLAY: {
+              target: "playing",
+              actions: ["setElapsed", "playVideo"],
+            },
+          },
         },
         playing: {
           on: {
-            PAUSE: 'paused',
-            END: 'ended',
-            TIMING: 'playing'
-          }
+            TIMING: {
+              target: "playing",
+              actions: "setElapsed",
+            },
+            PAUSE: {
+              target: "paused",
+              actions: ["setElapsed", "pauseVideo"],
+            },
+            END: "ended",
+          },
         },
         ended: {
           on: {
-            PLAY: 'play'
-          }
+            PLAY: {
+              target: "playing",
+              actions: "restartVideo",
+            },
+          },
         },
-      }
+      },
     },
-    failure: { type: 'final' },
-  }
-})
+    failure: {
+      type: "final",
+    },
+  },
+});
 
-function App() {
+/**
+ * Action functions
+ */
+
+const setVideo = assign({
+  video: (_context, event) => event.video,
+  duration: (_context, event) => event.video.duration,
+});
+
+const setElapsed = assign({
+  elapsed: (context, _event) => context.video.currentTime,
+});
+
+const playVideo = (context, _event) => {
+  context.video.play();
+};
+
+const pauseVideo = (context, _event) => {
+  context.video.pause();
+};
+
+const restartVideo = (context, _event) => {
+  context.video.currentTime = 0;
+  context.video.play();
+};
+
+/**
+ * Components
+ */
+
+export default function App() {
+  const ref = React.useRef(null);
+  const [current, send] = useMachine(videoMachine, {
+    actions: { setVideo, setElapsed, playVideo, pauseVideo, restartVideo },
+  });
+  const { duration, elapsed } = current.context;
+
   return (
     <div className="container">
-      <video conrtols>
-        <source src="/src/assets/Fibree.mp4" type="video/mp4" />
+      <video
+        ref={ref}
+        onCanPlay={() => {
+          send("LOADED", { video: ref.current });
+        }}
+        onTimeUpdate={() => {
+          send("TIMING");
+        }}
+        onEnded={() => {
+          send("END");
+        }}
+        onError={() => {
+          send("FAIL");
+        }}
+      >
+        <source src="/Fibree.mp4" type="video/mp4" />
       </video>
 
-      <div>
-        <ElapsedBar elapsed={0} duration={0} />
-        <Buttons />
-        <Timer elapsed={0} duration={0} />
-      </div>
+      {["paused", "playing", "ended"].some((subState) =>
+        current.matches({ ready: subState })
+      ) && (
+        <div>
+          <ElapsedBar elapsed={elapsed} duration={duration} />
+          <Buttons current={current} send={send} />
+          <Timer elapsed={elapsed} duration={duration} />
+        </div>
+      )}
     </div>
   );
 }
 
-const Buttons = () => {
-  return <button onClick={() => {}}>Play / Pause</button>
-}
+const Buttons = ({ current, send }) => {
+  if (current.matches({ ready: "playing" })) {
+    return (
+      <button
+        onClick={() => {
+          send("PAUSE");
+        }}
+      >
+        Pause
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => {
+        send("PLAY");
+      }}
+    >
+      Play
+    </button>
+  );
+};
 
 const ElapsedBar = ({ elapsed, duration }) => (
   <div className="elapsed">
     <div
-      className='elapsed-bar'
+      className="elapsed-bar"
       style={{ width: `${percentage(duration, elapsed)}%` }}
     />
   </div>
-)
+);
 
 const Timer = ({ elapsed, duration }) => (
-  <span className='timer'>
-    {minutes(elapsed)}:{seconds(elapsed)} of {minutes(duration)}:{seconds(duration)}
+  <span className="timer">
+    {minutes(elapsed)}:{seconds(elapsed)} of {minutes(duration)}:
+    {seconds(duration)}
   </span>
-)
-
-export default App;
+);

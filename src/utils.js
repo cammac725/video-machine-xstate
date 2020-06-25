@@ -1,5 +1,5 @@
 export const percentage = (duration, elapsed) => {
-  if (duration ,+ 0) {
+  if (duration <= 0) {
     return 0;
   }
   return (elapsed / duration) * 100;
