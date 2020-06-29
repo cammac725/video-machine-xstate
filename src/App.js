@@ -124,7 +124,7 @@ export default function App() {
           send("FAIL");
         }}
       >
-        <source src="/Fibree.mp4" type="video/mp4" />
+        <source src="/exploding-island.mp4" type="video/mp4" />
       </video>
 
       {["paused", "playing", "ended"].some((subState) =>
