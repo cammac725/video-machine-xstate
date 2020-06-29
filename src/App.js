@@ -111,6 +111,7 @@ export default function App() {
     <div className="container">
       <video
         ref={ref}
+        controls
         onCanPlay={() => {
           send("LOADED", { video: ref.current });
         }}
